@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { login, loginApi } from "./helpers";
 
 const BASE = "http://localhost:3101";
 const MOCK = "http://localhost:4010";
@@ -17,7 +18,8 @@ async function search(page: Page, niche: string) {
 }
 
 test("busca real via Apify (API simulada) com carregamento e polling", async ({ page, request }) => {
-  await page.goto(BASE);
+  await login(page, BASE);
+  await loginApi(request, BASE);
   await expect(page.getByText("Apify conectado")).toBeVisible();
   const before = (await (await request.get(`${MOCK}/__last-input`)).json()).runsStarted;
 
@@ -62,12 +64,15 @@ test("busca real via Apify (API simulada) com carregamento e polling", async ({ 
   expect(html).not.toContain("test-token");
   const scripts = await page.locator("script[src]").evaluateAll((els) => els.map((e) => (e as HTMLScriptElement).src));
   for (const src of scripts) expect(await (await request.get(src)).text()).not.toContain("test-token");
-  const status = await (await request.get(`${BASE}/api/status`)).text();
+  const statusRes = await request.get(`${BASE}/api/status`);
+  expect(statusRes.status()).toBe(200);
+  const status = await statusRes.text();
   expect(status).not.toContain("test-token");
+  expect(status).not.toContain("senha-de-teste");
 });
 
 test("mensagens de erro: limite de requisições e ausência de resultados", async ({ page }) => {
-  await page.goto(BASE);
+  await login(page, BASE);
   await search(page, "Limite");
   await expect(page.getByRole("alert").filter({ hasText: "Limite de requisições atingido" })).toBeVisible();
   await expect(page.getByText("Aguarde alguns instantes")).toBeVisible();
@@ -80,6 +85,7 @@ test("mensagens de erro: limite de requisições e ausência de resultados", asy
 });
 
 test("API valida entradas e bloqueia outras origens", async ({ request }) => {
+  await loginApi(request, BASE);
   const bad = await request.post(`${BASE}/api/search-leads`, { data: { city: "", niches: [] } });
   expect(bad.status()).toBe(400);
   expect((await bad.json()).code).toBe("VALIDATION_ERROR");

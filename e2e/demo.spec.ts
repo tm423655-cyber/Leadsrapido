@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import fs from "node:fs";
+import { login } from "./helpers";
 
 const BASE = "http://localhost:3100";
 const OUT = process.env.E2E_OUT_DIR ?? "test-results";
@@ -11,7 +12,7 @@ async function scores(page: Page) {
 }
 
 test("fluxo completo no modo demonstração", async ({ page }) => {
-  await page.goto(BASE);
+  await login(page, BASE);
   await expect(page.getByText("Modo demonstração").first()).toBeVisible();
   await expect(page.getByText("Nenhum lead ainda")).toBeVisible();
 
@@ -161,7 +162,7 @@ test("fluxo completo no modo demonstração", async ({ page }) => {
 test("layout responsivo no celular", async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
   const page = await context.newPage();
-  await page.goto(BASE);
+  await login(page, BASE);
   await page.getByRole("textbox", { name: "Cidade" }).fill("Ribeirão Preto");
   await page.getByLabel("Estado").selectOption("SP");
   await page.getByRole("button", { name: "Docerias" }).click();

@@ -65,3 +65,25 @@ export function forgetRunId(runId: string): void {
     if (cached.runId === runId) recentRuns.delete(key);
   }
 }
+
+const loginFailures = new Map<string, number[]>();
+const LOGIN_WINDOW_MS = 60_000;
+const MAX_LOGIN_FAILURES = 5;
+
+function clientIp(request: Request): string {
+  return (request.headers.get("x-forwarded-for") ?? "local").split(",")[0].trim();
+}
+
+/** true se o IP errou a senha muitas vezes no último minuto. */
+export function loginBlocked(request: Request): boolean {
+  const now = Date.now();
+  const recent = (loginFailures.get(clientIp(request)) ?? []).filter((t) => now - t < LOGIN_WINDOW_MS);
+  loginFailures.set(clientIp(request), recent);
+  return recent.length >= MAX_LOGIN_FAILURES;
+}
+
+export function recordLoginFailure(request: Request): void {
+  const ip = clientIp(request);
+  loginFailures.set(ip, [...(loginFailures.get(ip) ?? []), Date.now()]);
+  if (loginFailures.size > 1000) loginFailures.clear();
+}

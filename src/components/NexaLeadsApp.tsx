@@ -18,6 +18,7 @@ import {
   GridIcon,
   InfoIcon,
   LoaderIcon,
+  LogoutIcon,
   SheetIcon,
   ShieldIcon,
   TableIcon,
@@ -41,6 +42,11 @@ interface AppStatus {
   maxLeads: number;
   actorId?: string;
   configError?: string | null;
+  authRequired?: boolean;
+}
+
+function goToLogin() {
+  window.location.replace(`/login?next=${encodeURIComponent(window.location.pathname)}`);
 }
 
 type SearchState =
@@ -131,7 +137,10 @@ export default function NexaLeadsApp() {
     }
     setHydrated(true);
     fetch("/api/status", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((r) => {
+        if (r.status === 401) goToLogin();
+        return r.ok ? r.json() : Promise.reject();
+      })
       .then((data: AppStatus) => setStatus(data))
       .catch(() => setStatus((s) => ({ ...s, mode: "unknown" })));
   }, []);
@@ -193,6 +202,7 @@ export default function NexaLeadsApp() {
           const data = (await res.json()) as SearchResponse;
           if (searchToken.current !== token) return;
           failures = 0;
+          if (!data.ok && data.code === "UNAUTHORIZED") return goToLogin();
           if (!data.ok) {
             setSearch({ phase: "error", code: data.code, message: data.message, params });
             break;
@@ -238,6 +248,7 @@ export default function NexaLeadsApp() {
         });
         const data = (await res.json()) as SearchResponse;
         if (searchToken.current !== token) return;
+        if (!data.ok && data.code === "UNAUTHORIZED") return goToLogin();
         if (!data.ok) {
           setSearch({ phase: "error", code: data.code, message: data.message, params });
           inFlight.current = false;
@@ -345,6 +356,14 @@ export default function NexaLeadsApp() {
     push("info", "Dados locais apagados.");
   }
 
+  async function logout() {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      window.location.replace("/login");
+    }
+  }
+
   function switchView(next: "cards" | "table") {
     setView(next);
     try {
@@ -388,6 +407,11 @@ export default function NexaLeadsApp() {
           <span className="badge border-line-strong text-muted" title="Os leads e status ficam salvos apenas no navegador deste dispositivo.">
             <DatabaseIcon size={12} /> Dados só neste dispositivo
           </span>
+          {status.authRequired && (
+            <button type="button" className="btn btn-ghost px-2.5 py-1 text-xs" onClick={logout}>
+              <LogoutIcon size={13} /> Sair
+            </button>
+          )}
         </div>
       </header>
 

@@ -2,7 +2,7 @@
 
 Aplicação web de uso interno da **Nexa Agency** para encontrar empresas e possíveis clientes **por cidade e nicho**, usando a API do **Apify** (Google Maps Scraper). O foco são os melhores leads para vender sites: **empresas sem site próprio** aparecem primeiro.
 
-> Sem login, cadastro ou pagamento. Os leads e status ficam salvos **apenas no navegador deste dispositivo** (localStorage).
+> Sem cadastro, pagamento nem banco de dados. O acesso é protegido por **uma senha** (variável `NEXALEADS_PASSWORD`). Os leads e status ficam salvos **apenas no navegador deste dispositivo** (localStorage).
 
 ---
 
@@ -63,6 +63,18 @@ npm run dev
 
 Acesse http://localhost:3000. Sem token configurado, o app entra automaticamente em **modo demonstração**.
 
+## Senha de acesso (login sem banco de dados)
+
+Para que ninguém use o app (e seus créditos do Apify) sem autorização, todas as páginas e a API exigem login com uma senha única:
+
+- A senha fica na variável de ambiente `NEXALEADS_PASSWORD`. Opcionalmente, defina também `NEXALEADS_SESSION_SECRET` (uma chave aleatória, ex.: `openssl rand -base64 32`).
+- Depois de entrar, o navegador recebe um cookie assinado (HMAC-SHA256, `HttpOnly`, válido por 30 dias). Nada é salvo em banco de dados.
+- Sem login, as páginas redirecionam para `/login` e a API responde `401`. A verificação acontece no `src/proxy.ts` e de novo dentro de cada rota de API.
+- Depois de 5 senhas erradas em 1 minuto, o IP fica bloqueado por 1 minuto.
+- **Trocar a senha:** altere `NEXALEADS_PASSWORD` na Vercel e faça um novo deploy. Todos os dispositivos conectados são desconectados.
+- Em produção sem `NEXALEADS_PASSWORD`, o app fica **bloqueado** e mostra como configurar. No `npm run dev` sem senha, o acesso é liberado para facilitar o desenvolvimento.
+- O botão **Sair** fica no topo da página.
+
 ## Configurando o Apify
 
 1. Crie uma conta em https://apify.com (o plano gratuito inclui créditos mensais).
@@ -118,15 +130,16 @@ Buscas idênticas feitas em sequência (duplo clique, recarregar a página) reap
 
 1. Envie o repositório para o GitHub.
 2. Na Vercel: **Add New → Project** → importe o repositório. O framework **Next.js** é detectado automaticamente.
-3. Em **Settings → Environment Variables**, cadastre `APIFY_API_TOKEN` e `APIFY_ACTOR_ID`, além das opcionais que quiser.
+3. Em **Settings → Environment Variables**, cadastre `APIFY_API_TOKEN`, `APIFY_ACTOR_ID` e `NEXALEADS_PASSWORD` (e, se quiser, `NEXALEADS_SESSION_SECRET` e as opcionais).
 4. Faça o deploy. Cada chamada da API é curta, pois o acompanhamento é feito por polling, e funciona no plano Hobby.
 
-> Dica: como não há login, proteja o deploy se ele não deve ser público. Use **Vercel Authentication / Password Protection** (Settings → Deployment Protection) para que só você acesse o app e ninguém gaste seus créditos do Apify.
+> O app já exige senha própria. Se quiser uma camada extra, a Vercel também oferece **Vercel Authentication** (Settings → Deployment Protection).
 
 ---
 
 ## Segurança e privacidade
 
+- Acesso protegido por senha, com cookie assinado e limite de tentativas (veja “Senha de acesso”).
 - O token do Apify só é lido no servidor (`src/server/config.ts`, com `import "server-only"`). Os testes E2E verificam que ele não aparece no HTML, nos bundles JavaScript nem nas respostas da API.
 - Validação dos campos no navegador e no servidor (tamanho, caracteres permitidos, UF válida, número de nichos, limite de leads).
 - Bloqueio de requisições de outras origens, limite de 8 buscas por minuto por IP, reaproveitamento de buscas idênticas e cancelamento de execuções.

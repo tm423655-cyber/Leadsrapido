@@ -22,13 +22,13 @@ export default defineConfig({
       command: "npx next start -p 3100",
       port: 3100,
       reuseExistingServer: true,
-      env: { APIFY_API_TOKEN: "", NEXALEADS_DEMO_MODE: "true" },
+      env: { APIFY_API_TOKEN: "", NEXALEADS_DEMO_MODE: "true", NEXALEADS_PASSWORD: "senha-de-teste-123" },
     },
     {
       command: "npx next start -p 3101",
       port: 3101,
       reuseExistingServer: true,
-      env: { APIFY_API_TOKEN: "test-token", APIFY_ACTOR_ID: "compass/crawler-google-places", APIFY_API_BASE_URL: "http://localhost:4010", APIFY_MAX_LEADS: "50" },
+      env: { APIFY_API_TOKEN: "test-token", APIFY_ACTOR_ID: "compass/crawler-google-places", APIFY_API_BASE_URL: "http://localhost:4010", APIFY_MAX_LEADS: "50", NEXALEADS_PASSWORD: "senha-de-teste-123" },
     },
   ],
 });

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getApifyConfig } from "@/server/config";
 import { ApifyError, abortRun, getRun, getRunItems, startRun } from "@/server/apify";
 import { generateDemoPlaces } from "@/server/demo";
+import { requestIsAuthorized } from "@/server/auth";
 import { forgetRun, forgetRunId, getRecentRun, isSameOrigin, rateLimit, rememberRun } from "@/server/guards";
 import { normalizePlaces } from "@/lib/normalize";
 import { searchKey, validateSearch } from "@/lib/validation";
@@ -20,6 +21,8 @@ function fail(code: string, message: string, status: number) {
   return json({ ok: false, code, message }, status);
 }
 
+const unauthorized = () => fail("UNAUTHORIZED", "Sessão expirada ou não autenticada. Faça login novamente.", 401);
+
 function handleError(error: unknown) {
   if (error instanceof ApifyError) return fail(error.code, error.message, error.httpStatus);
   console.error("[search-leads] erro inesperado", error instanceof Error ? error.message : error);
@@ -33,6 +36,7 @@ function firstValidationError(errors: Partial<Record<keyof SearchParams, string>
 /** Inicia uma busca. Modo demo: responde na hora. Modo Apify: inicia a execução do Actor e devolve o runId. */
 export async function POST(request: Request) {
   if (!isSameOrigin(request)) return fail("FORBIDDEN", "Origem não permitida.", 403);
+  if (!(await requestIsAuthorized(request))) return unauthorized();
   const config = getApifyConfig();
   if (config.configError) return fail("CONFIG_ERROR", config.configError, 500);
 
@@ -79,6 +83,7 @@ export async function POST(request: Request) {
 
 /** Consulta o andamento da execução e, quando terminar, devolve os leads normalizados. */
 export async function GET(request: Request) {
+  if (!(await requestIsAuthorized(request))) return unauthorized();
   const config = getApifyConfig();
   if (config.demoMode) return fail("DEMO_MODE", "Consulta de execuções indisponível no modo demonstração.", 400);
 
@@ -131,6 +136,7 @@ export async function GET(request: Request) {
 /** Cancela uma execução em andamento (evita custos de uma busca que não é mais necessária). */
 export async function DELETE(request: Request) {
   if (!isSameOrigin(request)) return fail("FORBIDDEN", "Origem não permitida.", 403);
+  if (!(await requestIsAuthorized(request))) return unauthorized();
   const config = getApifyConfig();
   if (config.demoMode) return json({ ok: true, mode: "demo", status: "SUCCEEDED" });
   const runId = new URL(request.url).searchParams.get("runId") ?? "";
