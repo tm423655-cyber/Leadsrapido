@@ -15,6 +15,7 @@ Aplicação web de uso interno da **Nexa Agency** para encontrar empresas e poss
 - **Cards ou tabela** com nome, categoria/nicho, endereço, telefone, WhatsApp, nota, avaliações, site, Google Maps, Instagram, status do site, pontuação e data da coleta.
 - **Filtros**: apenas sem site, com telefone, com WhatsApp, nota mínima, avaliações mínimas, nicho, cidade, status, pontuação mínima, texto livre, somente a última busca e descartados.
 - **Ações por lead**: abrir no Google Maps, ligar, abrir WhatsApp (link `wa.me`, **sem envio automático**), copiar dados, marcar como contatado/interessado e descartar/restaurar.
+- **Gerar abordagem**: cada lead tem um botão que cria uma mensagem de primeiro contato personalizada, com nome da empresa, cidade, nicho, avaliações e situação do site (sem site, só Instagram ou site próprio). São 3 versões, a mensagem pode ser editada e você pode colocar seu nome. Dá para copiar ou abrir no WhatsApp com o texto já preenchido; o envio é sempre manual. Os modelos ficam em `src/lib/pitch.ts`.
 - **Status de funil**: Novo, Contatar, Contatado, Interessado, Sem interesse e Cliente, salvos localmente.
 - **Exportação**: CSV (padrão Excel BR: `;` e UTF-8 com BOM), Excel (.xlsx), copiar todos os filtrados e baixar somente os leads sem site.
 - **Dashboard**: total de leads, leads sem site, média das notas, pontuação média, leads por nicho e por status (clique para filtrar).

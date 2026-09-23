@@ -5,6 +5,7 @@ import Dashboard from "./Dashboard";
 import FiltersPanel from "./FiltersPanel";
 import LeadCard from "./LeadCard";
 import LeadTable from "./LeadTable";
+import PitchModal from "./PitchModal";
 import SearchForm from "./SearchForm";
 import { ToastViewport, useToasts } from "./Toasts";
 import {
@@ -108,6 +109,7 @@ export default function NexaLeadsApp() {
   const [page, setPage] = useState(1);
   const [now, setNow] = useState(() => Date.now());
   const [storageWarning, setStorageWarning] = useState(false);
+  const [pitchLeadId, setPitchLeadId] = useState<string | null>(null);
   const { toasts, push, dismiss } = useToasts();
 
   const inFlight = useRef(false);
@@ -290,9 +292,13 @@ export default function NexaLeadsApp() {
         const ok = await copyText(leadToText(lead));
         push(ok ? "success" : "error", ok ? "Dados do lead copiados." : "Não foi possível copiar. Permita o acesso à área de transferência.");
       },
+      onPitch: (lead: StoredLead) => setPitchLeadId(lead.id),
     }),
     [persist, push],
   );
+
+  const pitchLead = pitchLeadId ? (leads.find((l) => l.id === pitchLeadId) ?? null) : null;
+  const closePitch = useCallback(() => setPitchLeadId(null), []);
 
   // ----- Filtros / paginação -----
   const filtered = useMemo(() => applyFilters(leads, filters, lastSearch?.id ?? null), [leads, filters, lastSearch]);
@@ -588,6 +594,18 @@ export default function NexaLeadsApp() {
           </button>
         )}
       </footer>
+
+      {pitchLead && (
+        <PitchModal
+          lead={pitchLead}
+          onClose={closePitch}
+          onCopy={async (text) => {
+            const ok = await copyText(text);
+            push(ok ? "success" : "error", ok ? "Mensagem copiada. Cole no WhatsApp, e-mail ou Instagram." : "Não foi possível copiar a mensagem.");
+          }}
+          onMarkContacted={(id) => handlers.onStatus(id, "contatado")}
+        />
+      )}
 
       <ToastViewport toasts={toasts} dismiss={dismiss} />
     </div>

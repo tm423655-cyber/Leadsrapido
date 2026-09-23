@@ -4,12 +4,13 @@ import { useId } from "react";
 import { SITE_STATUS_LABEL, WHATSAPP_LABEL } from "@/lib/labels";
 import { telLink } from "@/lib/phone";
 import { LEAD_STATUSES, type LeadStatus, type StoredLead } from "@/lib/types";
-import { CopyIcon, HeartIcon, MapPinIcon, PhoneIcon, RestoreIcon, TrashIcon, UserCheckIcon, WhatsAppIcon } from "./Icons";
+import { CopyIcon, HeartIcon, MapPinIcon, MessageIcon, PhoneIcon, RestoreIcon, TrashIcon, UserCheckIcon, WhatsAppIcon } from "./Icons";
 
 export interface LeadActionsHandlers {
   onStatus: (id: string, status: LeadStatus) => void;
   onDiscard: (id: string, discarded: boolean) => void;
   onCopy: (lead: StoredLead) => void;
+  onPitch: (lead: StoredLead) => void;
 }
 
 export function SiteBadge({ lead }: { lead: StoredLead }) {
@@ -112,6 +113,14 @@ export function LeadActions({ lead, handlers, compact = false }: { lead: StoredL
   const hideText = compact ? "sr-only" : "";
   return (
     <div className="flex flex-col gap-2">
+      <button
+        type="button"
+        className={`btn btn-primary ${compact ? "py-1.5 text-xs" : "py-2.5"}`}
+        onClick={() => handlers.onPitch(lead)}
+        aria-label={`Gerar abordagem para ${lead.name}`}
+      >
+        <MessageIcon /> Gerar abordagem
+      </button>
       <div className={`grid gap-2 ${compact ? "grid-cols-4" : "grid-cols-2 sm:grid-cols-4"}`}>
         <ActionLink href={lead.mapsUrl} label={`Abrir ${lead.name} no Google Maps`}>
           <MapPinIcon /> <span className={hideText}>Maps</span>

@@ -79,6 +79,36 @@ test("fluxo completo no modo demonstração", async ({ page }) => {
   const clip = await page.evaluate(() => navigator.clipboard.readText());
   expect(clip).toContain("Pontuação:");
 
+  // Gerar abordagem (mensagem personalizada, envio manual)
+  const pitchTarget = page.locator("article").filter({ has: page.getByRole("link", { name: /^Ligar para/ }) }).first();
+  const pitchName = (await pitchTarget.locator("h3").textContent())!;
+  await pitchTarget.getByRole("button", { name: `Gerar abordagem para ${pitchName}` }).click();
+  const dialog = page.getByRole("dialog", { name: pitchName });
+  await expect(dialog).toBeVisible();
+  const message = dialog.getByLabel("Mensagem de abordagem");
+  await expect(message).toHaveValue(new RegExp(pitchName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  await expect(message).toHaveValue(/não têm um site/);
+  await expect(message).toHaveValue(/demonstração (gratuita e )?sem compromisso/);
+  await dialog.getByPlaceholder("Ex.: Thiago").fill("Thiago");
+  await expect(message).toHaveValue(/Aqui é Thiago, da Nexa Agency\./);
+  const firstVersion = await message.inputValue();
+  await dialog.getByRole("button", { name: /Outra versão/ }).click();
+  expect(await message.inputValue()).not.toBe(firstVersion);
+  await message.fill("Mensagem editada à mão");
+  await expect(dialog.getByRole("link", { name: "Abrir no WhatsApp" })).toHaveAttribute(
+    "href",
+    /^https:\/\/wa\.me\/55\d{10,11}\?text=Mensagem%20editada%20%C3%A0%20m%C3%A3o$/,
+  );
+  await page.screenshot({ path: `${OUT}/11-gerar-abordagem.png` });
+  await dialog.getByRole("button", { name: "Copiar mensagem" }).click();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("Mensagem editada à mão");
+  await dialog.getByRole("button", { name: "Marcar como contatado" }).click();
+  await expect(dialog.getByRole("button", { name: "Contatado" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(page.getByLabel(`Status do lead ${pitchName}`)).toHaveValue("contatado");
+  await page.getByLabel(`Status do lead ${pitchName}`).selectOption("novo");
+
   // Exportação CSV (somente os filtrados)
   const [csvDl] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "CSV" }).click()]);
   expect(csvDl.suggestedFilename()).toMatch(/^nexaleads-.*\.csv$/);
@@ -147,5 +177,9 @@ test("layout responsivo no celular", async ({ browser }) => {
   await page.locator("article").first().scrollIntoViewIfNeeded();
   await page.screenshot({ path: `${OUT}/05-celular-cards.png` });
   await page.screenshot({ path: `${OUT}/06-celular-completo.png`, fullPage: true });
+  await page.locator("article").first().getByRole("button", { name: /Gerar abordagem/ }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+  await page.screenshot({ path: `${OUT}/12-celular-abordagem.png` });
   await context.close();
 });
