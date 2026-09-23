@@ -1,0 +1,151 @@
+import { expect, test, type Page } from "@playwright/test";
+import fs from "node:fs";
+
+const BASE = "http://localhost:3100";
+const OUT = process.env.E2E_OUT_DIR ?? "test-results";
+
+async function scores(page: Page) {
+  return page.locator("article [role=img][aria-label^='Pontuação']").evaluateAll((els) =>
+    els.map((el) => Number(el.getAttribute("aria-label")!.replace(/\D+/g, " ").trim().split(" ")[0])),
+  );
+}
+
+test("fluxo completo no modo demonstração", async ({ page }) => {
+  await page.goto(BASE);
+  await expect(page.getByText("Modo demonstração").first()).toBeVisible();
+  await expect(page.getByText("Nenhum lead ainda")).toBeVisible();
+
+  // Validação dos campos
+  await page.getByRole("button", { name: "Encontrar leads" }).click();
+  await expect(page.getByText("Informe a cidade (ex.: Franca).")).toBeVisible();
+  await expect(page.getByText("Selecione pelo menos um nicho.")).toBeVisible();
+
+  // Cidade no formato "Franca, SP" e nichos
+  await page.getByRole("textbox", { name: "Cidade" }).fill("Franca, SP");
+  await page.getByRole("textbox", { name: "Cidade" }).blur();
+  await expect(page.getByRole("textbox", { name: "Cidade" })).toHaveValue("Franca");
+  await expect(page.getByLabel("Estado")).toHaveValue("SP");
+  await page.getByRole("button", { name: "Pizzarias" }).click();
+  await page.getByRole("button", { name: "Barbearias" }).click();
+  await page.getByLabel("Nicho personalizado").fill("Pet shops");
+  await page.getByLabel("Nicho personalizado").press("Enter");
+  await page.getByLabel(/Quantidade de leads/).fill("30");
+
+  await page.getByRole("button", { name: "Encontrar leads" }).click();
+  // Estado de carregamento
+  await expect(page.getByRole("button", { name: "Buscando…" })).toBeDisabled();
+  await expect(page.getByText(/Buscando Pizzarias, Barbearias, Pet shops em Franca - SP/)).toBeVisible();
+  await page.screenshot({ path: `${OUT}/01-carregando.png`, fullPage: false });
+
+  await expect(page.locator("article").first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/leads? encontrados?/).first()).toBeVisible();
+  await expect(page.getByText("Fictício").first()).toBeVisible();
+  const count = await page.locator("article").count();
+  expect(count).toBeGreaterThan(10);
+
+  // Ordenação pela pontuação
+  const s = await scores(page);
+  expect(s).toEqual([...s].sort((a, b) => b - a));
+  await expect(page.locator("article").first().getByText("Sem site")).toBeVisible();
+  await page.screenshot({ path: `${OUT}/02-resultados-desktop.png`, fullPage: true });
+
+  // Filtro "Apenas sem site"
+  await page.getByRole("button", { name: "Apenas sem site" }).click();
+  const noSiteCards = page.locator("article");
+  const noSiteCount = await noSiteCards.count();
+  expect(noSiteCount).toBeGreaterThan(0);
+  expect(noSiteCount).toBeLessThan(count);
+  for (let i = 0; i < noSiteCount; i++) await expect(noSiteCards.nth(i).locator(".badge").first()).toContainText("Sem site");
+
+  // Links do lead
+  const first = page.locator("article").first();
+  const maps = first.getByRole("link", { name: /Google Maps/ });
+  await expect(maps).toHaveAttribute("href", /^https:\/\/www\.google\.com\/maps\//);
+  await expect(maps).toHaveAttribute("target", "_blank");
+  await expect(maps).toHaveAttribute("rel", /noopener/);
+  const withPhone = page.locator("article").filter({ has: page.getByRole("link", { name: /^Ligar para/ }) }).first();
+  await expect(withPhone.getByRole("link", { name: /^Ligar para/ })).toHaveAttribute("href", /^tel:\+55\d{10,11}$/);
+  await expect(withPhone.getByRole("link", { name: /WhatsApp/ })).toHaveAttribute("href", /^https:\/\/wa\.me\/55\d{10,11}$/);
+  // O sandbox de testes não acessa a internet: responde localmente às URLs do Google.
+  await page.context().route("https://www.google.com/**", (route) => route.fulfill({ status: 200, body: "maps" }));
+  const [popup] = await Promise.all([page.waitForEvent("popup"), maps.click()]);
+  await popup.waitForLoadState();
+  expect(popup.url()).toMatch(/google\.com/);
+  await popup.close();
+
+  // Copiar dados
+  await first.getByRole("button", { name: /Copiar dados/ }).click();
+  await expect(page.getByText("Dados do lead copiados.")).toBeVisible();
+  const clip = await page.evaluate(() => navigator.clipboard.readText());
+  expect(clip).toContain("Pontuação:");
+
+  // Exportação CSV (somente os filtrados)
+  const [csvDl] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "CSV" }).click()]);
+  expect(csvDl.suggestedFilename()).toMatch(/^nexaleads-.*\.csv$/);
+  const csvPath = `${OUT}/export.csv`;
+  await csvDl.saveAs(csvPath);
+  const csv = fs.readFileSync(csvPath, "utf8");
+  expect(csv.charCodeAt(0)).toBe(0xfeff);
+  expect(csv).toContain("Pontuação;Empresa;Categoria;Nicho;Status do site");
+  expect(csv.trim().split("\r\n")).toHaveLength(noSiteCount + 1);
+
+  // Excel e "Baixar só sem site"
+  const [xlsxDl] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Excel" }).click()]);
+  expect(xlsxDl.suggestedFilename()).toMatch(/\.xlsx$/);
+  await xlsxDl.saveAs(`${OUT}/export.xlsx`);
+  await page.getByRole("button", { name: "Apenas sem site" }).click();
+  const [noSiteDl] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Baixar só sem site" }).click()]);
+  expect(noSiteDl.suggestedFilename()).toMatch(/^nexaleads-sem-site-.*\.csv$/);
+  await noSiteDl.saveAs(`${OUT}/sem-site.csv`);
+  const noSiteCsv = fs.readFileSync(`${OUT}/sem-site.csv`, "utf8").trim().split("\r\n").slice(1);
+  expect(noSiteCsv).toHaveLength(noSiteCount);
+  expect(noSiteCsv.every((line) => line.includes(";Sem site"))).toBe(true);
+
+  // Salvamento de status (persiste após recarregar)
+  const target = page.locator("article").first();
+  const name = (await target.locator("h3").textContent())!;
+  await target.getByRole("button", { name: /Contatado/ }).click();
+  await expect(target.getByLabel(`Status do lead ${name}`)).toHaveValue("contatado");
+  const second = page.locator("article").nth(1);
+  const name2 = (await second.locator("h3").textContent())!;
+  await second.getByLabel(`Status do lead ${name2}`).selectOption("cliente");
+  await page.reload();
+  await expect(page.getByLabel(`Status do lead ${name}`)).toHaveValue("contatado");
+  await expect(page.getByLabel(`Status do lead ${name2}`)).toHaveValue("cliente");
+  await expect(page.getByRole("region", { name: "Leads por status" }).getByText("Contatado")).toBeVisible();
+
+  // Descartar lead
+  await page.locator("article", { hasText: name }).getByRole("button", { name: /Descartar/ }).click();
+  await expect(page.locator("article h3", { hasText: name })).toHaveCount(0);
+  await page.getByRole("button", { name: "Ver descartados" }).click();
+  await expect(page.locator("article h3", { hasText: name })).toHaveCount(1);
+  await page.getByRole("button", { name: "Ver descartados" }).click();
+
+  // Visualização em tabela
+  await page.getByRole("button", { name: "Tabela" }).click();
+  await expect(page.locator("table tbody tr").first()).toBeVisible();
+  await page.screenshot({ path: `${OUT}/03-tabela.png`, fullPage: false });
+  await page.getByRole("button", { name: "Cards" }).click();
+});
+
+test("layout responsivo no celular", async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+  const page = await context.newPage();
+  await page.goto(BASE);
+  await page.getByRole("textbox", { name: "Cidade" }).fill("Ribeirão Preto");
+  await page.getByLabel("Estado").selectOption("SP");
+  await page.getByRole("button", { name: "Docerias" }).click();
+  await page.getByRole("button", { name: "Encontrar leads" }).click();
+  await expect(page.locator("article").first()).toBeVisible({ timeout: 15_000 });
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+  // Filtros recolhidos no celular, abrem pelo botão
+  await expect(page.getByRole("button", { name: "Apenas sem site" })).toBeHidden();
+  await page.getByRole("button", { name: /^Filtros/ }).click();
+  await expect(page.getByRole("button", { name: "Apenas sem site" })).toBeVisible();
+  await page.screenshot({ path: `${OUT}/04-celular-topo.png` });
+  await page.locator("article").first().scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `${OUT}/05-celular-cards.png` });
+  await page.screenshot({ path: `${OUT}/06-celular-completo.png`, fullPage: true });
+  await context.close();
+});

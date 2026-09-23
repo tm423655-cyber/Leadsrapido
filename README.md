@@ -1,0 +1,161 @@
+# NexaLeads · Nexa Agency
+
+Aplicação web de uso interno da **Nexa Agency** para encontrar empresas e possíveis clientes **por cidade e nicho**, usando a API do **Apify** (Google Maps Scraper). O foco são os melhores leads para vender sites: **empresas sem site próprio** aparecem primeiro.
+
+> Sem login, cadastro ou pagamento. Os leads e status ficam salvos **apenas no navegador deste dispositivo** (localStorage).
+
+---
+
+## Funcionalidades
+
+- **Busca** por cidade, estado (UF) e país, com um ou vários nichos populares ou um nicho personalizado. Também aceita digitar “Franca, SP” direto no campo cidade.
+- **Quantidade de leads** configurável, com limite máximo por busca para controlar custos.
+- **Integração segura com Apify**: o token fica só no servidor (variáveis de ambiente) e nunca vai para o navegador.
+- **Pontuação de 0 a 100** e ordenação automática, com etiqueta **“Sem site”**.
+- **Cards ou tabela** com nome, categoria/nicho, endereço, telefone, WhatsApp, nota, avaliações, site, Google Maps, Instagram, status do site, pontuação e data da coleta.
+- **Filtros**: apenas sem site, com telefone, com WhatsApp, nota mínima, avaliações mínimas, nicho, cidade, status, pontuação mínima, texto livre, somente a última busca e descartados.
+- **Ações por lead**: abrir no Google Maps, ligar, abrir WhatsApp (link `wa.me`, **sem envio automático**), copiar dados, marcar como contatado/interessado e descartar/restaurar.
+- **Status de funil**: Novo, Contatar, Contatado, Interessado, Sem interesse e Cliente, salvos localmente.
+- **Exportação**: CSV (padrão Excel BR: `;` e UTF-8 com BOM), Excel (.xlsx), copiar todos os filtrados e baixar somente os leads sem site.
+- **Dashboard**: total de leads, leads sem site, média das notas, pontuação média, leads por nicho e por status (clique para filtrar).
+- **Modo demonstração** com dados **fictícios** (sinalizados como “Fictício”) quando o Apify ainda não está configurado.
+- Interface escura com a identidade da Nexa, responsiva para computador e celular, toda em português do Brasil.
+
+## Pontuação do lead
+
+| Critério | Pontos |
+| --- | --- |
+| Não tem site | +40 |
+| Tem telefone | +20 |
+| Tem WhatsApp | +15 |
+| Mais de 20 avaliações | +10 |
+| Nota igual ou superior a 4 | +10 |
+| Endereço completo (rua, cidade e UF/CEP) | +5 |
+
+Os resultados são ordenados pela maior pontuação. Em caso de empate, vêm primeiro os leads sem site, depois os com mais avaliações e depois os de maior nota. Passe o mouse sobre a pontuação para ver quais critérios o lead atendeu.
+
+### Como os dados são interpretados (sem inventar nada)
+
+- **Status do site**
+  - **Sem site**: o Google Maps não informa site, ou o “site” informado é só uma rede social ou agregador (Instagram, Facebook, Linktree, wa.me, iFood…). Nesse caso aparece “só Instagram”, por exemplo.
+  - **Possui site**: há um domínio próprio.
+  - **Não identificado**: a fonte não traz nenhuma informação sobre site. Nesse caso o lead **não** ganha os +40 pontos.
+- **WhatsApp**
+  - **Confirmado**: a fonte trouxe um link ou número de WhatsApp.
+  - **Provável (celular)**: o telefone é um celular brasileiro (DDD + 9 dígitos começando com 9). É uma inferência, e está sinalizada assim na tela.
+  - Números fixos também geram o link `wa.me` (muitas empresas usam WhatsApp Business em fixo), mas não somam pontos.
+- **Outra cidade**: se o Google Maps retornar uma empresa de outra cidade, ela recebe a etiqueta “Outra cidade”.
+- Empresas **fechadas permanentemente** são descartadas. As fechadas temporariamente recebem uma etiqueta.
+- **Instagram** só aparece quando a fonte fornece o link.
+
+---
+
+## Rodando localmente
+
+Pré-requisito: **Node.js 20 ou superior**.
+
+```bash
+npm install
+cp .env.example .env.local   # preencha o token (opcional para testar em modo demo)
+npm run dev
+```
+
+Acesse http://localhost:3000. Sem token configurado, o app entra automaticamente em **modo demonstração**.
+
+## Configurando o Apify
+
+1. Crie uma conta em https://apify.com (o plano gratuito inclui créditos mensais).
+2. Copie seu token em **Console → Settings → API & Integrations → Personal API tokens**.
+3. Escolha o Actor. O recomendado é o **Google Maps Scraper**: `compass/crawler-google-places` (https://apify.com/compass/crawler-google-places). Abra a página do Actor uma vez no Console e aceite os termos, se for pedido.
+4. Preencha o `.env.local` (local) ou as variáveis de ambiente da Vercel:
+
+```env
+APIFY_API_TOKEN=apify_api_xxxxxxxxxxxxxxxxx
+APIFY_ACTOR_ID=compass/crawler-google-places
+```
+
+### Variáveis opcionais
+
+| Variável | Padrão | Para que serve |
+| --- | --- | --- |
+| `APIFY_MAX_LEADS` | `100` | Máximo de leads por busca (entre 1 e 500). Protege contra custos altos. |
+| `APIFY_LANGUAGE` | `pt-BR` | Idioma dos resultados do Google Maps. |
+| `APIFY_RUN_TIMEOUT_SECS` | `600` | Tempo máximo de execução do Actor. |
+| `APIFY_MAX_CHARGE_USD` | vazio | Teto de gasto por execução em Actors cobrados por evento. |
+| `APIFY_ACTOR_INPUT_JSON` | vazio | JSON mesclado ao input do Actor, ex.: `{"scrapeContacts":true}` para tentar obter Instagram/WhatsApp a partir dos sites (gera custo extra). |
+| `NEXALEADS_DEMO_MODE` | `false` | `true` força o modo demonstração mesmo com token. |
+
+Input enviado ao Actor (arquivo `src/server/apify.ts`, função `buildActorInput`):
+
+```json
+{
+  "searchStringsArray": ["Pizzarias", "Docerias"],
+  "locationQuery": "Franca, SP, Brasil",
+  "maxCrawledPlacesPerSearch": 10,
+  "language": "pt-BR",
+  "countryCode": "br",
+  "skipClosedPlaces": true,
+  "scrapePlaceDetailPage": false,
+  "scrapeContacts": false,
+  "maxImages": 0,
+  "maxReviews": 0
+}
+```
+
+O limite total informado na tela é dividido entre os nichos. A execução também recebe `maxItems`, que limita a cobrança em Actors “pay per result”. Se trocar de Actor, a normalização (`src/lib/normalize.ts`) já aceita nomes de campos comuns (`title`/`name`, `website`/`websiteUrl`, `totalScore`/`rating`…). Ajuste ali se o novo Actor usar campos diferentes.
+
+### Como a busca funciona
+
+1. O navegador chama `POST /api/search-leads` com cidade, UF, país, nichos e quantidade.
+2. O servidor valida os campos, bloqueia chamadas de outras origens, aplica limite de frequência e inicia a execução do Actor no Apify.
+3. O navegador acompanha o andamento por `GET /api/search-leads?runId=...` a cada 5 segundos, com indicador de carregamento e botão **Cancelar** (que aborta a execução no Apify).
+4. Ao terminar, o servidor busca os itens do dataset, normaliza, calcula a pontuação e devolve a lista ordenada.
+
+Buscas idênticas feitas em sequência (duplo clique, recarregar a página) reaproveitam a mesma execução por 10 minutos. Antes de repetir uma busca recente, o app também pede confirmação para evitar custo duplicado.
+
+## Publicando na Vercel
+
+1. Envie o repositório para o GitHub.
+2. Na Vercel: **Add New → Project** → importe o repositório. O framework **Next.js** é detectado automaticamente.
+3. Em **Settings → Environment Variables**, cadastre `APIFY_API_TOKEN` e `APIFY_ACTOR_ID`, além das opcionais que quiser.
+4. Faça o deploy. Cada chamada da API é curta, pois o acompanhamento é feito por polling, e funciona no plano Hobby.
+
+> Dica: como não há login, proteja o deploy se ele não deve ser público. Use **Vercel Authentication / Password Protection** (Settings → Deployment Protection) para que só você acesse o app e ninguém gaste seus créditos do Apify.
+
+---
+
+## Segurança e privacidade
+
+- O token do Apify só é lido no servidor (`src/server/config.ts`, com `import "server-only"`). Os testes E2E verificam que ele não aparece no HTML, nos bundles JavaScript nem nas respostas da API.
+- Validação dos campos no navegador e no servidor (tamanho, caracteres permitidos, UF válida, número de nichos, limite de leads).
+- Bloqueio de requisições de outras origens, limite de 8 buscas por minuto por IP, reaproveitamento de buscas idênticas e cancelamento de execuções.
+- Links externos abrem com `rel="noopener noreferrer"`. URLs recebidas da fonte são aceitas só se forem `http`/`https`.
+- Exportação CSV protegida contra injeção de fórmulas.
+- Nenhuma mensagem é enviada automaticamente: WhatsApp e ligação abrem apenas os aplicativos, e o contato é manual.
+- Só são exibidos dados públicos de empresas fornecidos pela fonte. Respeite os termos de uso do Apify e do Google Maps e a LGPD ao abordar empresas.
+
+## Testes
+
+```bash
+npm test            # testes unitários (pontuação, telefone/WhatsApp, normalização, validação, exportação)
+npm run lint        # checagem de tipos TypeScript
+npm run build
+npm run test:e2e    # testes E2E com Playwright (usa uma API do Apify simulada em e2e/mock-apify.mjs)
+```
+
+Os testes E2E cobrem: busca por cidade e nicho, estado de carregamento, polling do Apify, filtro de sem site, ordenação por pontuação, links (Maps, `tel:` e `wa.me`), cópia, exportação CSV/Excel/sem site, salvamento de status após recarregar, descarte, layout no celular (sem rolagem horizontal), erros de limite de requisições, ausência de resultados, validação e bloqueio de outras origens. Se o Playwright não encontrar o Chromium, defina `CHROMIUM_PATH` apontando para o executável.
+
+## Estrutura
+
+```
+src/
+  app/
+    api/search-leads/route.ts   # rota segura: inicia, acompanha e cancela buscas
+    api/status/route.ts         # informa modo demo/Apify (sem expor o token)
+    layout.tsx, page.tsx, globals.css
+  components/                   # interface (busca, dashboard, filtros, cards, tabela, toasts)
+  lib/                          # regras compartilhadas: pontuação, normalização, telefone, filtros, exportação, storage
+  server/                       # somente servidor: config, cliente Apify, dados demo, proteções
+tests/                          # testes unitários (Vitest)
+e2e/                            # testes E2E (Playwright) + API do Apify simulada
+```
