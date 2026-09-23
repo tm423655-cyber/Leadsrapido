@@ -60,7 +60,11 @@ const server = http.createServer(async (req, res) => {
       run.aborted = true;
       return send(res, 200, { data: { id: runMatch[1], status: "ABORTED" } });
     }
-    if (runMatch[2] === "/dataset/items") return send(res, 200, items(run.input));
+    if (runMatch[2] === "/dataset/items") {
+      const all = items(run.input);
+      // Imita o filtro "website" do Google Maps Scraper.
+      return send(res, 200, run.input.website === "withoutWebsite" ? all.filter((p) => !p.website) : all);
+    }
     run.polls += 1;
     const status = run.aborted ? "ABORTED" : run.polls >= 2 ? "SUCCEEDED" : "RUNNING";
     return send(res, 200, { data: { id: runMatch[1], status, statusMessage: status === "RUNNING" ? "Crawled 3 of 10 places" : null, defaultDatasetId: `ds${runMatch[1]}` } });

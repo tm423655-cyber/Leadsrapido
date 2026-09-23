@@ -9,6 +9,7 @@ Aplicação web de uso interno da **Nexa Agency** para encontrar empresas e poss
 ## Funcionalidades
 
 - **Busca** por cidade, estado (UF) e país, com um ou vários nichos populares ou um nicho personalizado. Também aceita digitar “Franca, SP” direto no campo cidade.
+- **Buscar apenas empresas sem site**: opção no formulário que envia o filtro `website: "withoutWebsite"` ao Google Maps Scraper. O Apify traz só empresas sem site, e o servidor confere de novo antes de mostrar os resultados.
 - **Quantidade de leads** configurável, com limite máximo por busca para controlar custos.
 - **Integração segura com Apify**: o token fica só no servidor (variáveis de ambiente) e nunca vai para o navegador.
 - **Pontuação de 0 a 100** e ordenação automática, com etiqueta **“Sem site”**.
@@ -114,6 +115,8 @@ Input enviado ao Actor (arquivo `src/server/apify.ts`, função `buildActorInput
   "maxReviews": 0
 }
 ```
+
+Com a opção **“Buscar apenas empresas sem site”** ligada, o input também leva `"website": "withoutWebsite"` (filtro do próprio Google Maps Scraper). O servidor ainda descarta qualquer resultado que não seja “Sem site”. Empresas que só têm Instagram cadastrado como site podem ficar de fora nesse modo, porque o Google Maps as trata como “com site”.
 
 O limite total informado na tela é dividido entre os nichos. A execução também recebe `maxItems`, que limita a cobrança em Actors “pay per result”. Se trocar de Actor, a normalização (`src/lib/normalize.ts`) já aceita nomes de campos comuns (`title`/`name`, `website`/`websiteUrl`, `totalScore`/`rating`…). Ajuste ali se o novo Actor usar campos diferentes.
 

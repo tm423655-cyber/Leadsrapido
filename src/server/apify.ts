@@ -112,6 +112,8 @@ export function buildActorInput(params: SearchParams, config: ApifyConfig): Reco
     maxImages: 0,
     maxReviews: 0,
     maxQuestions: 0,
+    // Filtro do próprio Google Maps Scraper: retorna só lugares sem site.
+    ...(params.onlyNoSite ? { website: "withoutWebsite" } : {}),
     ...config.extraInput,
   };
 }

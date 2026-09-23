@@ -60,8 +60,10 @@ export function validateSearch(input: unknown, maxLimit = 100): ValidationResult
   }
   limit = Math.min(limit, cap);
 
+  const onlyNoSite = raw.onlyNoSite === true || raw.onlyNoSite === "true" || raw.onlyNoSite === "1";
+
   if (Object.keys(errors).length > 0) return { ok: false, errors };
-  return { ok: true, value: { city, state, country, niches, limit } };
+  return { ok: true, value: { city, state, country, niches, limit, onlyNoSite } };
 }
 
 export function searchKey(params: SearchParams): string {
@@ -71,5 +73,6 @@ export function searchKey(params: SearchParams): string {
     params.country.toLowerCase(),
     [...params.niches].map((n) => n.toLowerCase()).sort(),
     params.limit,
+    params.onlyNoSite,
   ]);
 }

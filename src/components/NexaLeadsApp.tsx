@@ -170,12 +170,14 @@ export default function NexaLeadsApp() {
         setSearch({
           phase: "error",
           code: "NO_RESULTS",
-          message: `Nenhuma empresa encontrada para ${params.niches.join(", ")} em ${params.city} - ${params.state}. Tente outro nicho, uma cidade vizinha ou um termo mais genérico.`,
+          message: `Nenhuma empresa${params.onlyNoSite ? " sem site" : ""} encontrada para ${params.niches.join(", ")} em ${params.city} - ${params.state}. Tente outro nicho, uma cidade vizinha ou um termo mais genérico${
+            params.onlyNoSite ? ", ou desligue a opção “Buscar apenas empresas sem site”" : ""
+          }.`,
           params,
         });
         return;
       }
-      setFilters({ ...DEFAULT_FILTERS, onlyLastSearch: true });
+      setFilters({ ...DEFAULT_FILTERS, onlyLastSearch: true, onlyNoSite: params.onlyNoSite });
       setPage(1);
       const noSite = found.filter((l) => l.siteStatus === "sem_site").length;
       push("success", `${found.length} lead${found.length === 1 ? "" : "s"} encontrado${found.length === 1 ? "" : "s"} · ${noSite} sem site.`);
@@ -187,7 +189,14 @@ export default function NexaLeadsApp() {
 
   const poll = useCallback(
     async (token: number, params: SearchParams, runId: string, startedAt: number) => {
-      const qs = new URLSearchParams({ runId, city: params.city, state: params.state, country: params.country, limit: String(params.limit) });
+      const qs = new URLSearchParams({
+        runId,
+        city: params.city,
+        state: params.state,
+        country: params.country,
+        limit: String(params.limit),
+        onlyNoSite: params.onlyNoSite ? "1" : "0",
+      });
       params.niches.forEach((n) => qs.append("niche", n));
       let failures = 0;
       while (searchToken.current === token) {
@@ -442,7 +451,8 @@ export default function NexaLeadsApp() {
               <LoaderIcon className="animate-spin text-indigo-300" size={22} />
               <div>
                 <p className="font-semibold">
-                  Buscando {search.params.niches.join(", ")} em {search.params.city} - {search.params.state}
+                  Buscando {search.params.niches.join(", ")}
+                  {search.params.onlyNoSite ? " sem site" : ""} em {search.params.city} - {search.params.state}
                 </p>
                 <p className="text-sm text-muted">
                   {search.message ?? "Processando…"} · {formatElapsed(now - search.startedAt)}

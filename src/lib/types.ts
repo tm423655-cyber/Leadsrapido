@@ -72,6 +72,8 @@ export interface SearchParams {
   country: string;
   niches: string[];
   limit: number;
+  /** Buscar somente empresas sem site (filtro aplicado no Actor e conferido no servidor). */
+  onlyNoSite: boolean;
 }
 
 export type SearchResponse =

@@ -6,7 +6,7 @@ import { requestIsAuthorized } from "@/server/auth";
 import { forgetRun, forgetRunId, getRecentRun, isSameOrigin, rateLimit, rememberRun } from "@/server/guards";
 import { normalizePlaces } from "@/lib/normalize";
 import { searchKey, validateSearch } from "@/lib/validation";
-import type { SearchParams, SearchResponse } from "@/lib/types";
+import type { Lead, SearchParams, SearchResponse } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -27,6 +27,11 @@ function handleError(error: unknown) {
   if (error instanceof ApifyError) return fail(error.code, error.message, error.httpStatus);
   console.error("[search-leads] erro inesperado", error instanceof Error ? error.message : error);
   return fail("INTERNAL_ERROR", "Erro interno ao processar a busca. Tente novamente.", 500);
+}
+
+/** Confere no servidor: com "apenas sem site", nenhum lead com site (ou não identificado) passa. */
+function applySiteFilter(leads: Lead[], params: SearchParams): Lead[] {
+  return params.onlyNoSite ? leads.filter((l) => l.siteStatus === "sem_site") : leads;
 }
 
 function firstValidationError(errors: Partial<Record<keyof SearchParams, string>>): string {
@@ -57,7 +62,7 @@ export async function POST(request: Request) {
 
   if (config.demoMode) {
     await new Promise((resolve) => setTimeout(resolve, 900));
-    const leads = normalizePlaces(generateDemoPlaces(params), { ...params, source: "demo" });
+    const leads = applySiteFilter(normalizePlaces(generateDemoPlaces(params), { ...params, source: "demo" }), params);
     return json({
       ok: true,
       mode: "demo",
@@ -98,6 +103,7 @@ export async function GET(request: Request) {
       country: url.searchParams.get("country"),
       niches: url.searchParams.getAll("niche"),
       limit: url.searchParams.get("limit"),
+      onlyNoSite: url.searchParams.get("onlyNoSite"),
     },
     config.maxLeads,
   );
@@ -115,7 +121,7 @@ export async function GET(request: Request) {
     }
 
     const items = await getRunItems(runId, params.limit, config);
-    const leads = normalizePlaces(items, { ...params, source: "apify" });
+    const leads = applySiteFilter(normalizePlaces(items, { ...params, source: "apify" }), params);
     const partial = run.status !== "SUCCEEDED";
     if (partial) forgetRun(searchKey(params));
     return json({

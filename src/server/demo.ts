@@ -77,7 +77,7 @@ export function generateDemoPlaces(params: SearchParams, now = new Date()): RawP
 
       const siteRoll = rand();
       const website =
-        siteRoll < 0.45 ? null : siteRoll < 0.6 ? `https://www.instagram.com/${slug(name)}.demo/` : `https://www.${slug(name)}.example`;
+        params.onlyNoSite || siteRoll < 0.45 ? null : siteRoll < 0.6 ? `https://www.instagram.com/${slug(name)}.demo/` : `https://www.${slug(name)}.example`;
 
       const hasReviews = rand() < 0.9;
       places.push({

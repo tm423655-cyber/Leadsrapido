@@ -71,6 +71,34 @@ test("busca real via Apify (API simulada) com carregamento e polling", async ({ 
   expect(status).not.toContain("senha-de-teste");
 });
 
+test("buscar apenas empresas sem site envia o filtro ao Apify", async ({ page, request }) => {
+  await login(page, BASE);
+  await page.getByRole("textbox", { name: "Cidade" }).fill("Franca");
+  await page.getByLabel("Estado").selectOption("SP");
+  const toggle = page.getByRole("switch", { name: /Buscar apenas empresas sem site/ });
+  await expect(toggle).toHaveAttribute("aria-checked", "false");
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-checked", "true");
+  await page.getByLabel("Nicho personalizado").fill("Lanchonetes");
+  await page.getByLabel("Nicho personalizado").press("Enter");
+  await page.getByRole("button", { name: "Encontrar leads" }).click();
+  await expect(page.getByText(/Buscando Lanchonetes sem site em Franca - SP/)).toBeVisible();
+  await expect(page.locator("article").first()).toBeVisible({ timeout: 30_000 });
+
+  const last = await (await request.get(`${MOCK}/__last-input`)).json();
+  expect(last.input).toMatchObject({ website: "withoutWebsite", searchStringsArray: ["Lanchonetes"] });
+
+  const cards = page.locator("article");
+  await expect(cards).toHaveCount(2);
+  for (let i = 0; i < 2; i++) await expect(cards.nth(i).locator(".badge").first()).toContainText("Sem site");
+  await expect(page.getByRole("button", { name: "Apenas sem site" })).toHaveAttribute("aria-pressed", "true");
+  await page.screenshot({ path: `${OUT}/14-apenas-sem-site.png`, fullPage: true });
+
+  // A opção fica lembrada para a próxima busca
+  await page.reload();
+  await expect(page.getByRole("switch", { name: /Buscar apenas empresas sem site/ })).toHaveAttribute("aria-checked", "true");
+});
+
 test("mensagens de erro: limite de requisições e ausência de resultados", async ({ page }) => {
   await login(page, BASE);
   await search(page, "Limite");

@@ -166,8 +166,12 @@ test("layout responsivo no celular", async ({ browser }) => {
   await page.getByRole("textbox", { name: "Cidade" }).fill("Ribeirão Preto");
   await page.getByLabel("Estado").selectOption("SP");
   await page.getByRole("button", { name: "Docerias" }).click();
+  await page.getByRole("switch", { name: /Buscar apenas empresas sem site/ }).click();
   await page.getByRole("button", { name: "Encontrar leads" }).click();
   await expect(page.locator("article").first()).toBeVisible({ timeout: 15_000 });
+  const mobileCards = page.locator("article");
+  const mobileCount = await mobileCards.count();
+  for (let i = 0; i < mobileCount; i++) await expect(mobileCards.nth(i).locator(".badge").first()).toContainText("Sem site");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(0);
   // Filtros recolhidos no celular, abrem pelo botão
